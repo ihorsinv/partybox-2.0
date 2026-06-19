@@ -8,8 +8,7 @@ import { UIManager, ImageLoader } from "./ui/ui-manager.js";
 
 export class PartyBoxApp {
   constructor() {
-    // Ініціалізувати Firebase, але обернути в перевірку/try-catch —
-    // якщо зовнішній скрипт не завантажився, не припиняти ініціалізацію додатку
+
     if (typeof firebase !== 'undefined' && typeof firebase.initializeApp === 'function') {
       try {
         firebase.initializeApp({
