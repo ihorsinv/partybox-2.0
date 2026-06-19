@@ -547,6 +547,7 @@ export class PartyBoxApp {
 
   chooseSecretHost() {
     this.secretState.role = 'host';
+    this.cacheSecretGameUIRefs();
     if (!this.categoriesInitialized.has('secret-cats-container')) {
       this.initCategories('secret-cats-container', this.secretState.selectedCats, this.toggleSecretCategory.bind(this));
       this.setupCategoriesEventDelegation('secret-cats-container', this.secretState.selectedCats, this.toggleSecretCategory.bind(this));
@@ -560,9 +561,12 @@ export class PartyBoxApp {
 
   chooseSecretGuest() {
     this.secretState.role = 'guest';
-    document.getElementById('room-code-input').value = '';
-    document.getElementById('join-status').textContent = '';
-    const joinBtn = document.getElementById('btn-join-game');
+    this.cacheSecretGameUIRefs();
+    const roomCodeInput = this.secretGameUIRefs.roomCodeInput;
+    const joinStatus = this.secretGameUIRefs.joinStatus;
+    const joinBtn = this.secretGameUIRefs.btnJoinGame;
+    if (roomCodeInput) roomCodeInput.value = '';
+    if (joinStatus) joinStatus.textContent = '';
     if (joinBtn) joinBtn.disabled = false;
     this.show(document.querySelector('header'));
     this.switchScreen('screen-secret-lobby-guest');
@@ -652,49 +656,50 @@ export class PartyBoxApp {
     catch (error) { this.showToast('Не вдалося згенерувати код. Спробуйте ще раз.'); return; }
 
     this.secretState.roomCode = code;
+    const { btnGenerateRoom, roomCodeDisplay, hostConnectedGroup } = this.secretGameUIRefs || {};
     try {
-      document.getElementById('btn-generate-room').disabled = true;
+      if (btnGenerateRoom) btnGenerateRoom.disabled = true;
       const randomFirstTurn = CryptoRandomizer.secureRandomInt(2) === 0 ? 'host' : 'guest';
       await this.network.createRoom(code, this.secretState.grid.map(c => ({ name: c.name, emoji: c.emoji, imgUrl: c.imgUrl || '', desc: c.desc || '' })), randomFirstTurn);
 
       this.secretState.grid.forEach(char => this.gameHistory.addCharacterToHistory(char.name));
 
-      document.getElementById('room-code-display').textContent = code;
+      if (roomCodeDisplay) roomCodeDisplay.textContent = code;
       this.hide('host-setup-view'); this.show('host-lobby-view');
       document.getElementById('label-waiting-players').textContent = AppText.secretWaitMsg;
       this.network.listenForGuest(() => {
         this.hide('host-wait-group'); this.show('host-connected-group');
-        document.getElementById('host-connected-group').textContent = AppText.secretConnectedMsg;
+        if (hostConnectedGroup) hostConnectedGroup.textContent = AppText.secretConnectedMsg;
         this.show('btn-start-secret-game');
       });
       ImageLoader.preload(this.secretState.grid).catch(() => { });
     } catch (e) {
       this.showToast('Помилка створення кімнати. Спробуйте ще раз.');
-      document.getElementById('btn-generate-room').disabled = false;
+      if (btnGenerateRoom) btnGenerateRoom.disabled = false;
     }
   }
 
   async joinGame() {
-    const code = document.getElementById('room-code-input').value.trim().replace(/\s/g, '');
+    const { roomCodeInput, joinStatus, btnJoinGame } = this.secretGameUIRefs || {};
+    const code = (roomCodeInput ? roomCodeInput.value : '').trim().replace(/\s/g, '');
     if (code.length !== AppConfig.ROOM_CODE_LENGTH) { this.showToast(`Введіть ${AppConfig.ROOM_CODE_LENGTH} цифр`); return; }
     await this.network.disconnect(this.secretState.role);
-    const joinBtn = document.getElementById('btn-join-game');
-    joinBtn.disabled = true;
-    document.getElementById('join-status').textContent = 'Підключення...';
+    if (btnJoinGame) btnJoinGame.disabled = true;
+    if (joinStatus) joinStatus.textContent = 'Підключення...';
     try {
       const roomData = await this.network.joinRoom(code);
       const grid = this.ensureArray(roomData.grid);
       if (grid.length !== AppConfig.SECRET_GRID_SIZE) throw new Error('invalid-room-data');
       this.secretState.roomCode = code;
       this.secretState.grid = grid;
-      document.getElementById('join-status').textContent = AppText.secretConnectedMsg;
+      if (joinStatus) joinStatus.textContent = AppText.secretConnectedMsg;
       this.initSecretGameState();
       ImageLoader.preload(this.secretState.grid).catch(() => { });
     } catch (e) {
       const msg = e.message === 'room-not-found' ? 'Кімнату не знайдено. Перевірте код 🔍' : 'Помилка підключення. Спробуйте ще раз.';
       this.showToast(msg);
-      document.getElementById('join-status').textContent = '';
-      joinBtn.disabled = false;
+      if (joinStatus) joinStatus.textContent = '';
+      if (btnJoinGame) btnJoinGame.disabled = false;
     }
   }
 
@@ -703,10 +708,11 @@ export class PartyBoxApp {
     this.disposeSecretGameListeners();
     this.ui.cleanup();
     this.ui.invalidateCache();
+    const { btnGenerateRoom } = this.secretGameUIRefs || {};
     this.show('host-setup-view'); this.hide('host-lobby-view');
     this.show('host-wait-group'); this.hide('host-connected-group');
     this.hide('btn-start-secret-game');
-    document.getElementById('btn-generate-room').disabled = false;
+    if (btnGenerateRoom) btnGenerateRoom.disabled = false;
   }
 
   startSecretGame() {
@@ -734,6 +740,7 @@ export class PartyBoxApp {
     this.secretState.replayModalOpen = false;
     this.secretState.replayModalIncoming = false;
     this.pendingAccuseIndex = null;
+    this.cacheSecretGameUIRefs();
     this.network.listenState(this.syncGameState.bind(this));
     this.network.listenForDisconnect(() => {
       if (this.secretState.gracefulEnding) return;
@@ -741,7 +748,8 @@ export class PartyBoxApp {
       this.secretState.gameActive = false;
       setTimeout(async () => { await this.backToMenu(); }, AppConfig.RESULT_SCREEN_DELAY_MS);
     }, this.secretState.role);
-    document.getElementById('orientation-tip').classList.remove('dismissed');
+    const { orientationTip } = this.secretGameUIRefs || {};
+    if (orientationTip) orientationTip.classList.remove('dismissed');
     this.hide('mystery-my-char-wrap');
     this.cacheSecretGameButtons();
     this.setupSecretGameListeners();
@@ -753,7 +761,38 @@ export class PartyBoxApp {
       endBtn: this.ui.getElement('btn-myst-end-turn') || document.getElementById('btn-myst-end-turn'),
       accBtn: this.ui.getElement('btn-myst-accuse') || document.getElementById('btn-myst-accuse'),
       turnInd: this.ui.getElement('turn-indicator') || document.getElementById('turn-indicator'),
-      hintEl: document.getElementById('myst-ready-hint')
+      hintEl: this.ui.getElement('myst-ready-hint') || document.getElementById('myst-ready-hint')
+    };
+  }
+
+  cacheSecretGameUIRefs() {
+    this.secretGameUIRefs = {
+      roomCodeInput: this.ui.getElement('room-code-input') || document.getElementById('room-code-input'),
+      joinStatus: this.ui.getElement('join-status') || document.getElementById('join-status'),
+      roomCodeDisplay: this.ui.getElement('room-code-display') || document.getElementById('room-code-display'),
+      hostWaitGroup: this.ui.getElement('host-wait-group') || document.getElementById('host-wait-group'),
+      hostConnectedGroup: this.ui.getElement('host-connected-group') || document.getElementById('host-connected-group'),
+      btnGenerateRoom: this.ui.getElement('btn-generate-room') || document.getElementById('btn-generate-room'),
+      btnJoinGame: this.ui.getElement('btn-join-game') || document.getElementById('btn-join-game'),
+      orientationTip: this.ui.getElement('orientation-tip') || document.getElementById('orientation-tip'),
+      mysteryMyCharEmoji: this.ui.getElement('mystery-my-char-emoji') || document.getElementById('mystery-my-char-emoji'),
+      mysteryMyCharName: this.ui.getElement('mystery-my-char-name') || document.getElementById('mystery-my-char-name'),
+      mysteryMyCharImg: this.ui.getElement('mystery-my-char-img') || document.getElementById('mystery-my-char-img'),
+      accuseTitle: this.ui.getElement('accuse-title') || document.getElementById('accuse-title'),
+      accuseDesc: this.ui.getElement('accuse-desc') || document.getElementById('accuse-desc'),
+      accuseConfirmBtn: this.ui.getElement('btn-accuse-confirm') || document.getElementById('btn-accuse-confirm'),
+      replayRequestTitle: this.ui.getElement('replay-request-title') || document.getElementById('replay-request-title'),
+      replayRequestDesc: this.ui.getElement('replay-request-desc') || document.getElementById('replay-request-desc'),
+      resultTitle: this.ui.getElement('result-title') || document.getElementById('result-title'),
+      resultIcon: this.ui.getElement('result-icon') || document.getElementById('result-icon'),
+      resultMessage: this.ui.getElement('result-message') || document.getElementById('result-message'),
+      resMyEmoji: this.ui.getElement('res-my-emoji') || document.getElementById('res-my-emoji'),
+      resMyImg: this.ui.getElement('res-my-img') || document.getElementById('res-my-img'),
+      resMyName: this.ui.getElement('res-my-name') || document.getElementById('res-my-name'),
+      resOppEmoji: this.ui.getElement('res-opp-emoji') || document.getElementById('res-opp-emoji'),
+      resOppImg: this.ui.getElement('res-opp-img') || document.getElementById('res-opp-img'),
+      resOppName: this.ui.getElement('res-opp-name') || document.getElementById('res-opp-name'),
+      screenSecretGame: this.ui.getElement('screen-secret-game') || document.getElementById('screen-secret-game')
     };
   }
 
@@ -763,6 +802,7 @@ export class PartyBoxApp {
     });
     this.secretGameListenerCleanup.length = 0;
     this.secretGameButtonRefs = {};
+    this.secretGameUIRefs = {};
   }
 
   setupSecretGameListeners() {
@@ -799,7 +839,8 @@ export class PartyBoxApp {
   }
 
   dismissOrientationTip() {
-    document.getElementById('orientation-tip').classList.add('dismissed');
+    const { orientationTip } = this.secretGameUIRefs || {};
+    if (orientationTip) orientationTip.classList.add('dismissed');
   }
 
   async syncGameState(roomData) {
@@ -856,13 +897,12 @@ export class PartyBoxApp {
     const shouldRenderGrid = roomData.status === 'selection' || roomData.status === 'playing';
     if (shouldRenderGrid) {
       if (!this.secretState.gridBuilt) { this.initSecretGrid(); this.secretState.gridBuilt = true; }
-      const gameScreen = document.getElementById('screen-secret-game');
-      if (gameScreen && !gameScreen.classList.contains('active')) {
+      const { screenSecretGame, orientationTip } = this.secretGameUIRefs || {};
+      if (screenSecretGame && !screenSecretGame.classList.contains('active')) {
         try { this.hide(document.querySelector('header')); } catch (e) { }
         this.hide('mystery-my-char-wrap');
         this.switchScreen('screen-secret-game');
-        const tip = document.getElementById('orientation-tip');
-        if (tip) tip.classList.remove('dismissed');
+        if (orientationTip) orientationTip.classList.remove('dismissed');
       }
     }
     if (roomData.status === 'lobby') this.secretState.stage = 'lobby';
@@ -1040,7 +1080,7 @@ export class PartyBoxApp {
         }
         this.updateSecretGridUI();
         // ensure the ready button updates immediately for UX
-        const readyBtnImmediate = document.getElementById('btn-myst-ready');
+        const readyBtnImmediate = this.secretGameButtonRefs.readyBtn;
         if (readyBtnImmediate) {
           readyBtnImmediate.disabled = false;
           readyBtnImmediate.title = '';
@@ -1065,12 +1105,10 @@ export class PartyBoxApp {
     this.pendingAccuseIndex = idx;
     const char = Array.isArray(this.secretState.grid) && this.secretState.grid[idx] ? this.secretState.grid[idx] : null;
     const name = char ? (char.name || char.nameRU || 'Персонаж') : 'Персонаж';
-    const titleEl = document.getElementById('accuse-title');
-    const descEl = document.getElementById('accuse-desc');
-    const confirmBtn = document.getElementById('btn-accuse-confirm');
-    if (titleEl) titleEl.textContent = `Звинуватити ${name}?`;
-    if (descEl) descEl.textContent = 'Це фінальна відповідь.';
-    if (confirmBtn) confirmBtn.disabled = false;
+    const { accuseTitle, accuseDesc, accuseConfirmBtn } = this.secretGameUIRefs || {};
+    if (accuseTitle) accuseTitle.textContent = `Звинуватити ${name}?`;
+    if (accuseDesc) accuseDesc.textContent = 'Це фінальна відповідь.';
+    if (accuseConfirmBtn) accuseConfirmBtn.disabled = false;
     this.openModal('accuseModal');
   }
 
@@ -1096,20 +1134,20 @@ export class PartyBoxApp {
     const oppRole = this.secretState.role === 'host' ? 'guest' : 'host';
     const isCorrect = idx === this.secretState.opponentSelection;
     const winner = isCorrect ? this.secretState.role : oppRole;
-    const confirmBtn = document.getElementById('btn-accuse-confirm');
-    if (confirmBtn) confirmBtn.disabled = true;
+    const { accuseConfirmBtn } = this.secretGameUIRefs || {};
+    if (accuseConfirmBtn) accuseConfirmBtn.disabled = true;
     try {
       await this.network.updateStates({
         status: 'ended', winner, resultReason: isCorrect ? 'accuse_correct' : 'accuse_missed'
       });
     } catch (err) { this.showToast('Помилка мережі. Спробуйте ще раз.'); }
-    finally { if (confirmBtn) confirmBtn.disabled = false; }
+    finally { if (accuseConfirmBtn) accuseConfirmBtn.disabled = false; }
   }
 
   sendMysteryReady() {
     // Require a valid integer selection before sending ready
     if (!Number.isInteger(this.secretState.mySelected)) {
-      const hintEl = document.getElementById('myst-ready-hint');
+      const { hintEl } = this.secretGameUIRefs || {};
       if (hintEl) {
         hintEl.classList.remove('hidden');
       }
@@ -1120,12 +1158,20 @@ export class PartyBoxApp {
     this.updateSecretGridUI();
     this.network.updateState(`${this.secretState.role}/ready`, true);
     const myChar = this.secretState.grid[this.secretState.mySelected];
-    document.getElementById('mystery-my-char-emoji').textContent = myChar.emoji;
-    document.getElementById('mystery-my-char-name').textContent = myChar.name;
-    const imgEl = document.getElementById('mystery-my-char-img');
-    imgEl.src = ''; this.hide(imgEl); this.show('mystery-my-char-emoji');
-    const url = ImageLoader.getCharImage(myChar);
-    if (url) { imgEl.src = url; this.show(imgEl); this.hide('mystery-my-char-emoji'); }
+    const { mysteryMyCharEmoji, mysteryMyCharName, mysteryMyCharImg } = this.secretGameUIRefs || {};
+    if (mysteryMyCharEmoji) mysteryMyCharEmoji.textContent = myChar.emoji;
+    if (mysteryMyCharName) mysteryMyCharName.textContent = myChar.name;
+    if (mysteryMyCharImg) {
+      mysteryMyCharImg.src = '';
+      this.hide(mysteryMyCharImg);
+      this.show('mystery-my-char-emoji');
+      const url = ImageLoader.getCharImage(myChar);
+      if (url) {
+        mysteryMyCharImg.src = url;
+        this.show(mysteryMyCharImg);
+        this.hide('mystery-my-char-emoji');
+      }
+    }
     this.show('mystery-my-char-wrap');
   }
 
@@ -1180,12 +1226,11 @@ export class PartyBoxApp {
   openReplayModal(options = {}) {
     const title = options.title || AppText.replayRequestTitle;
     const desc = options.desc !== undefined ? options.desc : '';
-    const titleEl = document.getElementById('replay-request-title');
-    const descEl = document.getElementById('replay-request-desc');
-    if (titleEl) titleEl.textContent = title;
-    if (descEl) {
-      descEl.textContent = desc;
-      descEl.style.display = desc ? '' : 'none';
+    const { replayRequestTitle, replayRequestDesc } = this.secretGameUIRefs || {};
+    if (replayRequestTitle) replayRequestTitle.textContent = title;
+    if (replayRequestDesc) {
+      replayRequestDesc.textContent = desc;
+      replayRequestDesc.style.display = desc ? '' : 'none';
     }
     this.openModal('replayRequestModal');
     this.secretState.replayModalOpen = true;
@@ -1266,10 +1311,14 @@ export class PartyBoxApp {
   async showSecretResult(iWon, myCharIdx, oppCharIdx, reason) {
     const t = AppText;
     this.secretState.gracefulEnding = true;
-    const resultTitle = document.getElementById('result-title');
-    resultTitle.textContent = iWon ? t.resWinTitle : t.resLoseTitle;
-    resultTitle.classList.toggle('win', iWon); resultTitle.classList.toggle('lose', !iWon);
-    document.getElementById('result-icon').textContent = iWon ? '🎉' : '💔';
+    const { resultTitle, resultIcon, resultMessage, resMyEmoji, resMyImg, resMyName, resOppEmoji, resOppImg, resOppName } = this.secretGameUIRefs || {};
+    if (resultTitle) {
+      resultTitle.textContent = iWon ? t.resWinTitle : t.resLoseTitle;
+      resultTitle.classList.toggle('win', iWon);
+      resultTitle.classList.toggle('lose', !iWon);
+      resultTitle.style.background = '';
+    }
+    if (resultIcon) resultIcon.textContent = iWon ? '🎉' : '💔';
     let message;
     const isHost = this.secretState.role === 'host';
     if (reason === 'accuse_correct') message = iWon ? t.resWinByAccuseCorrect : t.resLoseByAccuseCorrect;
@@ -1277,22 +1326,24 @@ export class PartyBoxApp {
     else if (reason === 'surrender') message = iWon ? t.resWinBySurrender : t.resLoseBySurrender;
     else if (reason === 'eliminate_opponent_char') message = iWon ? t.resWinByEliminatedOpponentCard : t.resLoseByEliminatedOpponentCard;
     else message = iWon ? t.resWinMsg : t.resLoseMsg;
-    document.getElementById('result-message').textContent = message;
-    resultTitle.style.background = '';
+    if (resultMessage) resultMessage.textContent = message;
     const mChar = Number.isInteger(myCharIdx) && this.secretState.grid[myCharIdx] ? this.secretState.grid[myCharIdx] : null;
     const oChar = Number.isInteger(oppCharIdx) && this.secretState.grid[oppCharIdx] ? this.secretState.grid[oppCharIdx] : null;
-    const setupResultImage = (charObj, prefix) => {
-      const emojiEl = document.getElementById(`${prefix}-emoji`);
-      const imgEl = document.getElementById(`${prefix}-img`);
-      const nameEl = document.getElementById(`${prefix}-name`);
+    const setupResultImage = (charObj, emojiEl, imgEl, nameEl) => {
+      if (!emojiEl || !imgEl || !nameEl) return;
       this.show(emojiEl); this.hide(imgEl); imgEl.src = '';
       if (charObj) {
-        emojiEl.textContent = charObj.emoji; nameEl.textContent = charObj.name;
+        emojiEl.textContent = charObj.emoji;
+        nameEl.textContent = charObj.name;
         const url = ImageLoader.getCharImage(charObj);
         if (url) { imgEl.src = url; this.show(imgEl); this.hide(emojiEl); }
-      } else { emojiEl.textContent = '❓'; nameEl.textContent = '-'; }
+      } else {
+        emojiEl.textContent = '❓';
+        nameEl.textContent = '-';
+      }
     };
-    setupResultImage(mChar, 'res-my'); setupResultImage(oChar, 'res-opp');
+    setupResultImage(mChar, resMyEmoji, resMyImg, resMyName);
+    setupResultImage(oChar, resOppEmoji, resOppImg, resOppName);
     this.secretState.gameActive = false;
     this.hide(document.querySelector('header'));
     this.switchScreen('screen-secret-result');
