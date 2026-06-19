@@ -52,6 +52,7 @@ export class PartyBoxApp {
     this.currentGame = null;
     this.pendingAccuseIndex = null;
     this.categoriesInitialized = new Set();
+    this.secretGameListenerCleanup = [];
 
     // Запустити ініціалізацію
     this.init();
@@ -375,8 +376,8 @@ export class PartyBoxApp {
     document.getElementById('header-title').textContent = '🕵️‍♂️ PartyBox';
     this.show(document.querySelector('header'));
     await this.cancelSecretLobby();
-    await this.network.disconnect(this.secretState.role);
     this.resetSecretState();
+    this.disposeSecretGameListeners();
     this.ui.cleanup();
     this.ui.invalidateCache();
     const joinBtn = document.getElementById('btn-join-game');
@@ -696,6 +697,7 @@ export class PartyBoxApp {
 
   async cancelSecretLobby() {
     await this.network.disconnect(this.secretState.role).catch(() => { });
+    this.disposeSecretGameListeners();
     this.ui.cleanup();
     this.ui.invalidateCache();
     this.show('host-setup-view'); this.hide('host-lobby-view');
@@ -741,10 +743,18 @@ export class PartyBoxApp {
     this.setupSecretGameListeners();
   }
 
+  disposeSecretGameListeners() {
+    this.secretGameListenerCleanup.forEach(cleanup => {
+      try { cleanup(); } catch (e) { }
+    });
+    this.secretGameListenerCleanup.length = 0;
+  }
+
   setupSecretGameListeners() {
+    this.disposeSecretGameListeners();
     const cardsGrid = this.getElement('cards-grid') || document.getElementById('cards-grid');
     if (cardsGrid) {
-      this.ui.attachDelegatedListener(cardsGrid, '.info-trigger-btn', 'click', (event, target) => {
+      const cleanupInfo = this.ui.attachDelegatedListener(cardsGrid, '.info-trigger-btn', 'click', (event, target) => {
         event.stopPropagation();
         const cell = target.closest('.card-cell');
         const idx = cell ? Number(cell.dataset.idx) : NaN;
@@ -752,14 +762,16 @@ export class PartyBoxApp {
           this.openInfoModal(this.secretState.grid[idx], { enlargeImage: true }, event);
         }
       });
-      this.ui.attachDelegatedListener(cardsGrid, '.card-cell', 'click', (event, target) => {
+      const cleanupCard = this.ui.attachDelegatedListener(cardsGrid, '.card-cell', 'click', (event, target) => {
         const idx = Number(target.dataset.idx);
         if (!Number.isNaN(idx)) {
           this.handleCardClick(idx);
         }
       });
+      if (cleanupInfo) this.secretGameListenerCleanup.push(cleanupInfo);
+      if (cleanupCard) this.secretGameListenerCleanup.push(cleanupCard);
     }
-    this.ui.attachListener('btn-myst-info', 'click', event => {
+    const cleanupMystInfo = this.ui.attachListener('btn-myst-info', 'click', event => {
       if (!Number.isInteger(this.secretState.mySelected)) return;
       const myChar = this.secretState.grid[this.secretState.mySelected];
       if (myChar) {
@@ -767,6 +779,7 @@ export class PartyBoxApp {
         this.openInfoModal(myChar, { enlargeImage: true }, event);
       }
     });
+    if (cleanupMystInfo) this.secretGameListenerCleanup.push(cleanupMystInfo);
   }
 
   dismissOrientationTip() {
@@ -1046,8 +1059,6 @@ export class PartyBoxApp {
     document.getElementById('mystery-my-char-name').textContent = myChar.name;
     const imgEl = document.getElementById('mystery-my-char-img');
     imgEl.src = ''; this.hide(imgEl); this.show('mystery-my-char-emoji');
-    const infoBtn = document.getElementById('btn-myst-info');
-    infoBtn.onclick = (e) => { e.stopPropagation(); this.openInfoModal(myChar, { enlargeImage: true }, e); };
     const url = ImageLoader.getCharImage(myChar);
     if (url) { imgEl.src = url; this.show(imgEl); this.hide('mystery-my-char-emoji'); }
     this.show('mystery-my-char-wrap');
