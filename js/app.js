@@ -127,9 +127,11 @@ export class PartyBoxApp {
 
   switchScreen(id) {
     this.ui.showScreen(id);
-    if (this.currentGame === 'secret') {
-      const header = document.querySelector('header');
-      if (header) this.hide(header);
+    const header = document.querySelector('header');
+    if (header && (id === 'screen-secret-game' || id === 'screen-secret-result')) {
+      this.hide(header);
+    } else if (header) {
+      this.show(header);
     }
     this.updateStaticTexts();
   }
