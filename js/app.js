@@ -95,6 +95,7 @@ export class PartyBoxApp {
     this.initCategories('cats-container', this.state.selectedCats, this.toggleCategory.bind(this));
     this.setupCategoriesEventDelegation('cats-container', this.state.selectedCats, this.toggleCategory.bind(this));
     this.updateStaticTexts();
+    this.updatePlayerStepperState();
   }
 
   escapeHtml(value) {
@@ -127,9 +128,11 @@ export class PartyBoxApp {
 
   switchScreen(id) {
     this.ui.showScreen(id);
-    if (this.currentGame === 'secret') {
-      const header = document.querySelector('header');
+    const header = document.querySelector('header');
+    if (this.currentGame === 'secret' && (id === 'screen-secret-game' || id === 'screen-secret-result')) {
       if (header) this.hide(header);
+    } else if (header) {
+      this.show(header);
     }
     this.updateStaticTexts();
   }
@@ -212,7 +215,7 @@ export class PartyBoxApp {
     if (el('role-host-title')) el('role-host-title').textContent = t.roleHost;
     if (el('role-guest-title')) el('role-guest-title').textContent = t.roleGuest;
     if (el('setup-label-players')) el('setup-label-players').textContent = t.setupPlayers;
-    if (el('setup-spy-hint')) el('setup-spy-hint').innerHTML = t.setupSpyHint.replace('{N}', Math.floor(this.state.playerCount / 3));
+    if (el('setup-spy-hint')) el('setup-spy-hint').innerHTML = t.setupSpyHint.replace('{N}', Math.max(1, Math.floor(this.state.playerCount / AppConfig.SPIES_PER_PLAYERS)));
     if (el('setup-label-categories')) el('setup-label-categories').textContent = t.setupCategories;
     if (el('btn-select-all')) el('btn-select-all').textContent = this.state.selectedCats.size === AppCategories.length ? t.deselectAll : t.selectAll;
     if (el('btn-start-deal')) el('btn-start-deal').textContent = t.startBtn;
@@ -344,6 +347,22 @@ export class PartyBoxApp {
     this.state.playerCount = next;
     this.ui.setText('player-count', String(next));
     this.updateStaticTexts();
+    this.updatePlayerStepperState();
+  }
+
+  updatePlayerStepperState() {
+    const decreaseBtn = document.getElementById('btn-count-decrease');
+    const increaseBtn = document.getElementById('btn-count-increase');
+    if (decreaseBtn) {
+      const disabled = this.state.playerCount <= AppConfig.MIN_PLAYERS_SPY;
+      decreaseBtn.disabled = disabled;
+      decreaseBtn.classList.toggle('disabled', disabled);
+    }
+    if (increaseBtn) {
+      const disabled = this.state.playerCount >= AppConfig.MAX_PLAYERS_SPY;
+      increaseBtn.disabled = disabled;
+      increaseBtn.classList.toggle('disabled', disabled);
+    }
   }
 
   selectGame(game) {
@@ -354,10 +373,10 @@ export class PartyBoxApp {
       this.show('btn-rules'); this.show('btn-back-menu');
       document.getElementById('header-title').textContent = '🕵️‍♂️ SPY';
       this.updateCategoriesUI('cats-container', this.state.selectedCats);
+      this.updatePlayerStepperState();
       this.switchScreen('screen-setup');
     } else if (game === 'secret') {
       document.body.classList.add('is-secret-mode');
-      this.hide(document.querySelector('header'));
       this.show('btn-rules'); this.show('btn-back-menu');
       document.getElementById('header-title').textContent = '🎭 MYST';
       this.switchScreen('screen-secret-role-choice');
@@ -414,6 +433,11 @@ export class PartyBoxApp {
   }
 
   startGame() {
+    if (this.state.playerCount < AppConfig.MIN_PLAYERS_SPY || this.state.playerCount > AppConfig.MAX_PLAYERS_SPY) {
+      this.showToast(`Кількість гравців має бути від ${AppConfig.MIN_PLAYERS_SPY} до ${AppConfig.MAX_PLAYERS_SPY}`);
+      return;
+    }
+
     let pool = this.buildCharacterPool(true);
 
     if (pool.length === 0) {
