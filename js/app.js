@@ -53,6 +53,7 @@ export class PartyBoxApp {
     this.pendingAccuseIndex = null;
     this.categoriesInitialized = new Set();
     this.secretGameListenerCleanup = [];
+    this.secretGridCells = [];
 
     // Запустити ініціалізацію
     this.init();
@@ -874,6 +875,9 @@ export class PartyBoxApp {
     const gridEl = this.getElement('cards-grid') || document.getElementById('cards-grid');
     if (!gridEl) return;
     gridEl.innerHTML = '';
+    this.secretGridCells = [];
+    const fragment = document.createDocumentFragment();
+
     this.secretState.grid.forEach((char, idx) => {
       const cell = document.createElement('div');
       cell.id = `card-cell-${idx}`;
@@ -895,25 +899,27 @@ export class PartyBoxApp {
         </div>`;
       const imgEl = cell.querySelector('.card-img');
       ImageLoader.bind(imgEl, char, { hidePlaceholder: true });
-      gridEl.appendChild(cell);
+      fragment.appendChild(cell);
+      this.secretGridCells[idx] = cell;
     });
+
+    gridEl.appendChild(fragment);
   }
 
   updateSecretGridUI() {
     const t = AppText;
-    for (let idx = 0; idx < AppConfig.SECRET_GRID_SIZE; idx++) {
-      const cell = document.getElementById(`card-cell-${idx}`);
-      if (!cell) continue;
+    this.secretGridCells.forEach((cell, idx) => {
+      if (!cell) return;
       cell.classList.toggle('eliminated', this.secretState.myEliminated.has(idx));
       cell.classList.toggle('selected', this.secretState.stage === 'selection' && this.secretState.mySelected === idx);
       cell.classList.toggle('pending-elimination', this.secretState.stage === 'playing' && this.secretState.pendingEliminated.has(idx));
       cell.classList.toggle('locked', this.secretState.stage === 'playing' && !this.secretState.isMyTurn);
       cell.classList.toggle('accuse-target', this.secretState.accuseMode);
-    }
-    const readyBtn = this.getElement('btn-myst-ready') || document.getElementById('btn-myst-ready');
-    const endBtn = this.getElement('btn-myst-end-turn') || document.getElementById('btn-myst-end-turn');
-    const accBtn = this.getElement('btn-myst-accuse') || document.getElementById('btn-myst-accuse');
-    const turnInd = this.getElement('turn-indicator') || document.getElementById('turn-indicator');
+    });
+    const readyBtn = this.ui.getElement('btn-myst-ready') || document.getElementById('btn-myst-ready');
+    const endBtn = this.ui.getElement('btn-myst-end-turn') || document.getElementById('btn-myst-end-turn');
+    const accBtn = this.ui.getElement('btn-myst-accuse') || document.getElementById('btn-myst-accuse');
+    const turnInd = this.ui.getElement('turn-indicator') || document.getElementById('turn-indicator');
     if (this.secretState.stage === 'lobby') {
       if (readyBtn) this.hide(readyBtn);
       if (endBtn) this.hide(endBtn);
