@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="uk">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>PartyBox: Шпигун & Таємниця 🕵️</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="styles/main.css">
+  <link rel="stylesheet" href="styles/components.css">
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+</head>
+
+<body>
+  <div class="orb orb1"></div>
+  <div class="orb orb2"></div>
+  <div class="orb orb3"></div>
+
+  <div id="screen-main-menu" class="screen active">
+    <div class="main-menu-container">
+      <div class="text-center mb-20">
+        <div class="subtitle-muted" id="menu-subtitle">Оберіть гру</div>
+      </div>
+      <div class="game-mode-card spy-mode" id="menu-spy-card">
+        <div class="game-mode-icon">🕵️‍♂️</div>
+        <div class="game-mode-title" id="menu-spy-title">Шпигун</div>
+        <div class="game-mode-desc" id="menu-spy-desc">Локальна гра для компанії на одному пристрої</div>
+      </div>
+      <div class="game-mode-card secret-mode" id="menu-secret-card">
+        <div class="game-mode-icon">🎭</div>
+        <div class="game-mode-title" id="menu-secret-title">Таємниця</div>
+        <div class="game-mode-desc" id="menu-secret-desc">Мережева гра 1 на 1</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="screen-secret-role-choice" class="screen">
+    <div class="main-menu-container">
+      <div class="text-center mb-18">
+        <div class="gradient-heading mb-8" id="role-title">Оберіть роль</div>
+        <div class="subtitle-muted" id="role-subtitle">Створіть кімнату або підключіться</div>
+      </div>
+      <div class="game-mode-card spy-mode" id="secret-host-card">
+        <div class="game-mode-icon">🏠</div>
+        <div class="game-mode-title" id="role-host-title">Створити гру (Хост)</div>
+      </div>
+      <div class="game-mode-card secret-mode" id="secret-guest-card">
+        <div class="game-mode-icon">👤</div>
+        <div class="game-mode-title" id="role-guest-title">Підключитися (Гість)</div>
+      </div>
+    </div>
+  </div>
+
+  <header>
+    <div class="header-logo"><span id="header-title">🕵️‍♂️ PartyBox</span></div>
+    <div class="header-actions">
+      <button class="header-btn hidden" id="btn-back-menu">Меню</button>
+      <button class="header-btn hidden" id="btn-rules">Правила</button>
+      <button class="header-btn fullscreen-btn" id="btn-fullscreen" title="На весь екран">
+        <svg id="icon-fs-enter" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2">
+          <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+        </svg>
+        <svg id="icon-fs-exit" class="hidden" width="18" height="18" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="4 10 10 10 10 4"></polyline>
+          <polyline points="20 10 14 10 14 4"></polyline>
+          <polyline points="4 14 10 14 10 20"></polyline>
+          <polyline points="20 14 14 14 14 20"></polyline>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <div id="screen-setup" class="screen">
+    <div class="glass setup-card">
+      <div class="section-label" id="setup-label-players">Кількість гравців</div>
+      <div class="stepper">
+        <button id="btn-count-decrease">−</button>
+        <div class="val" id="player-count">5</div>
+        <button id="btn-count-increase">+</button>
+      </div>
+      <div class="spy-hint mt8" id="setup-spy-hint">Шпигунів: <strong id="spy-count-hint">1</strong> &nbsp;(1 на кожні 3
+        гравці)</div>
+      <div class="mt24" id="cats-section">
+        <div class="row-between mb-12 no-flex-shrink">
+          <div class="section-label no-margin" id="setup-label-categories">Категорії</div>
+          <button class="btn-ghost btn-small" id="btn-select-all">Обрати всі</button>
+        </div>
+        <div class="cats-wrapper">
+          <div class="cats" id="cats-container"></div>
+        </div>
+      </div>
+      <div class="mt24 no-flex-shrink">
+        <button class="btn-primary" id="btn-start-deal">Почати роздачу ролей</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="screen-deal" class="screen screen-center">
+    <div class="deal-wrap">
+      <div class="glass prompt-box" id="deal-prompt">
+        <div class="player-badge" id="deal-player-name">Гравець 1</div>
+        <div class="prompt-text" id="deal-prompt-text">Візьми пристрій, інші відверніться</div>
+        <button class="btn-primary" id="btn-open-card-init">Відкрити карту</button>
+      </div>
+      <div class="flip-scene hidden" id="flip-scene">
+        <div class="flip-card" id="flip-card">
+          <div class="flip-face flip-front" id="flip-front-cover">
+            <div class="front-pattern"></div>
+            <div class="front-glow"></div>
+            <div class="front-icon"></div>
+            <div class="front-label" id="text-tap-open"></div>
+          </div>
+          <div class="flip-face flip-back" id="flip-back"></div>
+        </div>
+      </div>
+      <div class="deal-actions hidden" id="deal-actions">
+        <button class="btn-ghost" id="btn-close-card">Закрити карту</button>
+        <button class="btn-primary btn-muted-outline" id="btn-restart-action">Почати заново</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="screen-final" class="screen screen-center">
+    <div class="glass final-card">
+      <span class="final-icon">🎭</span>
+      <div class="final-title" id="final-title">Всі ролі роздано.<br>Гру розпочато!</div>
+      <div class="final-stats">
+        <div class="stat-chip"><strong id="final-players">5</strong><span id="label-stat-players">Гравців</span></div>
+        <div class="stat-chip"><strong id="final-spies">1</strong><span id="label-stat-spies">Шпигунів</span></div>
+      </div>
+      <div class="final-sub" id="final-description">Обговорюйте та знайдіть шпигуна.</div>
+      <button class="btn-primary" id="btn-new-game-restart">Нова гра</button>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="confirmModal">
+    <div class="modal-content glass text-center">
+      <div class="modal-title" id="confirm-title">Почати заново?</div>
+      <div class="modal-description" id="confirm-desc">Всі ролі будут скинуті.</div>
+      <div class="row-center gap-12">
+        <button class="btn-ghost" id="btn-cancel">Скасувати</button>
+        <button class="btn-primary btn-danger" id="btn-confirm">Так</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="accuseModal">
+    <div class="modal-content glass text-center">
+      <div class="modal-title" id="accuse-title">Звинуватити?</div>
+      <div class="modal-description" id="accuse-desc">Це фінальна відповідь.</div>
+      <div class="row-center gap-12">
+        <button class="btn-ghost" id="btn-accuse-cancel">Скасувати</button>
+        <button class="btn-primary btn-danger" id="btn-accuse-confirm">Звинуватити</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="rulesModal">
+    <div class="modal-content glass">
+      <button class="close-modal-btn" id="btn-close-rules">×</button>
+      <div class="modal-title" id="modal-rules-title">Правила гри</div>
+      <div class="rules-scroll" id="modal-rules-body"></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="infoModal">
+    <div class="modal-content glass">
+      <button class="close-modal-btn" id="btn-close-info">×</button>
+      <div class="modal-title" id="modal-info-title">Опис персонажа</div>
+      <div class="rules-scroll text-center" id="modal-info-body"></div>
+    </div>
+  </div>
+
+  <div class="fullscreen-tooltip-overlay" id="fullscreenTooltipModal">
+    <div class="fullscreen-tooltip-content">
+      <img src="images/Full_screen_tooltip.webp" alt="Як увімкнути повний екран на iOS"
+        class="fullscreen-tooltip-image" />
+      <button class="fullscreen-tooltip-button" id="btn-close-tooltip">Зрозуміло</button>
+    </div>
+  </div>
+
+  <div id="screen-secret-lobby-host" class="screen">
+    <div class="glass setup-card" id="host-setup-view">
+      <div class="row-between mb-10">
+        <button class="header-btn btn-inline" id="btn-secret-back-host">Назад</button>
+        <div class="section-label no-margin" id="label-host-setup">Створити гру</div>
+      </div>
+      <p class="modal-description text-center" id="host-instruction">Оберіть категорії (У грі буде 16 карток)</p>
+      <div id="secret-cats-section">
+        <div class="row-between mb-12 no-flex-shrink">
+          <div class="section-label no-margin" id="label-host-cats">Категорії</div>
+          <button class="btn-ghost btn-small" id="btn-host-all">Обрати всі</button>
+        </div>
+        <div class="cats-wrapper">
+          <div class="cats" id="secret-cats-container"></div>
+        </div>
+      </div>
+      <div class="mt24 no-flex-shrink">
+        <button class="btn-primary" id="btn-generate-room">Згенерувати кімнату</button>
+      </div>
+    </div>
+    <div class="glass setup-card auto-height-card screen-center hidden padded-40-24" id="host-lobby-view">
+      <div class="section-label text-center" id="label-host-code">Код кімнати:</div>
+      <div class="huge-code" id="room-code-display">------</div>
+      <p class="text-muted-center" id="text-host-share">Передайте цей код другому гравцю.</p>
+      <div id="host-wait-group" class="row-center gap-12 mb-20">
+        <div class="status-dot"></div><span id="label-waiting-players">Очікування підключення...</span>
+      </div>
+      <div id="host-connected-group" class="hidden status-success mb-20">✓ Гравець підключився!</div>
+      <button class="btn-primary hidden full-width" id="btn-start-secret-game">Почати гру</button>
+      <button class="btn-ghost mt24" id="btn-host-cancel">Скасувати</button>
+    </div>
+  </div>
+
+  <div id="screen-secret-lobby-guest" class="screen screen-center">
+    <div class="glass setup-card auto-height-card padded-40-24">
+      <div class="row-start mb-20">
+        <button class="header-btn btn-inline" id="btn-secret-back-guest">Назад</button>
+      </div>
+      <div class="section-label text-center" id="label-guest-code">Введіть код кімнати</div>
+      <input type="tel" inputmode="numeric" pattern="[0-9]*" autocomplete="off" autocorrect="off" autocapitalize="off"
+        spellcheck="false" class="input-code mt16" id="room-code-input" placeholder="000000" maxlength="6">
+      <button class="btn-primary mt24" id="btn-join-game">Підключитися</button>
+      <div id="join-status" class="status-success"></div>
+    </div>
+  </div>
+
+  <div id="screen-secret-game" class="screen">
+    <div id="orientation-tip" class="orientation-tip-overlay">
+      <div class="modal-content glass tip-content">
+        <span class="tip-icon">📱🔄</span>
+        <div class="tip-heading">Рекомендовано горизонтально!</div>
+        <div class="tip-text">Поверніть пристрій горизонтально для зручнішого перегляду карток.</div>
+        <button class="btn-primary mt16" id="btn-dismiss-orientation">Зрозуміло</button>
+      </div>
+    </div>
+    <div class="mystery-layout">
+      <div class="mystery-grid-wrap" id="cards-grid"></div>
+      <div class="mystery-sidebar">
+        <div class="turn-indicator blink" id="turn-indicator">ОЧІКУВАННЯ...</div>
+        <div class="my-target-wrap hidden" id="mystery-my-char-wrap">
+          <div class="mystery-card">
+            <div class="mystery-card-img-wrap">
+              <img src="" id="mystery-my-char-img" class="mystery-card-img" alt="">
+              <div class="mystery-card-image-overlay"></div>
+              <div class="mystery-card-emoji" id="mystery-my-char-emoji">?</div>
+              <button class="mystery-info-btn" id="btn-myst-info" type="button">i</button>
+            </div>
+            <div class="mystery-card-info">
+              <div class="my-target-label" id="label-my-target">Ви загадали:</div>
+              <div class="mystery-card-name" id="mystery-my-char-name">Ім'я</div>
+              <div class="mystery-card-note">НЕ КАЖИ ІМ'Я ВГОЛОС</div>
+            </div>
+          </div>
+        </div>
+        <div class="mystery-actions">
+          <div class="mystery-ready-wrap">
+            <button class="btn-primary" id="btn-myst-ready">Я ГОТОВИЙ</button>
+            <div class="hint-note hidden" id="myst-ready-hint">Спочатку оберіть карту, щоб розпочати гру.</div>
+          </div>
+          <button class="btn-ghost hidden" id="btn-myst-end-turn">Завершити хід</button>
+          <button class="btn-danger btn-primary hidden" id="btn-myst-accuse">ЗВИНУВАТИ</button>
+          <button class="btn-ghost transparent-btn" id="btn-myst-surrender">Здатися</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="screen-secret-result" class="screen">
+    <div class="glass result-card">
+      <div class="result-header">
+        <span id="result-icon" class="result-icon">🏆</span>
+        <div id="result-title" class="result-title">Перемога</div>
+        <div id="result-message" class="result-message">Ви вгадали правильно персонажа і виграли раунд.</div>
+      </div>
+      <div class="result-grid">
+        <div class="result-panel">
+          <div id="res-lbl-mine" class="result-panel-label">Ваш вибір</div>
+          <div class="result-panel-img">
+            <div id="res-my-emoji" class="result-panel-emoji">❓</div>
+            <img src="" id="res-my-img" alt="Ваш вибір">
+          </div>
+          <div id="res-my-name" class="result-panel-name">-</div>
+        </div>
+        <div class="result-panel">
+          <div id="res-lbl-opp" class="result-panel-label">Вибір ворога</div>
+          <div class="result-panel-img">
+            <div id="res-opp-emoji" class="result-panel-emoji">❓</div>
+            <img src="" id="res-opp-img" alt="Вибір ворога">
+          </div>
+          <div id="res-opp-name" class="result-panel-name">-</div>
+        </div>
+      </div>
+      <div class="result-actions">
+        <button class="btn-primary" id="btn-res-replay">Нова роздача</button>
+        <button class="btn-ghost" id="btn-res-menu">В головне меню</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="replayRequestModal">
+    <div class="modal-content glass text-center">
+      <div class="modal-title" id="replay-request-title">Суперник хоче зіграти ще раз</div>
+      <div class="modal-description" id="replay-request-desc">Почати нову роздачу в цій кімнаті?</div>
+      <div class="row-center gap-12">
+        <button class="btn-ghost" id="btn-replay-decline">Відхилити</button>
+        <button class="btn-primary btn-danger" id="btn-replay-accept">Прийняти</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <div id="portrait-tip" class="portrait-tip-overlay">
+    <div class="modal-content glass tip-content">
+      <span class="tip-icon">📱🔄</span>
+      <div class="tip-heading">Поверніть пристрій</div>
+      <div class="tip-text">Для зручного використання головного меню поверніть пристрій у вертикальне положення.</div>
+      <button class="btn-primary mt16" id="btn-dismiss-portrait">Зрозуміло</button>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+
+</html>
