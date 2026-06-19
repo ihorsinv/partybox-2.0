@@ -357,7 +357,7 @@ export class PartyBoxApp {
       this.switchScreen('screen-setup');
     } else if (game === 'secret') {
       document.body.classList.add('is-secret-mode');
-      this.hide(document.querySelector('header'));
+      this.show(document.querySelector('header'));
       this.show('btn-rules'); this.show('btn-back-menu');
       document.getElementById('header-title').textContent = '🎭 MYST';
       this.switchScreen('screen-secret-role-choice');
@@ -545,6 +545,7 @@ export class PartyBoxApp {
     } else {
       this.updateCategoriesUI('secret-cats-container', this.secretState.selectedCats);
     }
+    this.show(document.querySelector('header'));
     this.show('host-setup-view'); this.hide('host-lobby-view');
     this.switchScreen('screen-secret-lobby-host');
   }
@@ -555,6 +556,7 @@ export class PartyBoxApp {
     document.getElementById('join-status').textContent = '';
     const joinBtn = document.getElementById('btn-join-game');
     if (joinBtn) joinBtn.disabled = false;
+    this.show(document.querySelector('header'));
     this.switchScreen('screen-secret-lobby-guest');
   }
 
