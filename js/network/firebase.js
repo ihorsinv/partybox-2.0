@@ -8,9 +8,7 @@ export class NetworkManager {
     this._authReady = authReady || Promise.resolve();
     this._guestHandler = null;
     this._disconnectHandler = null;
-    this._stateChildAddedHandler = null;
-    this._stateChildChangedHandler = null;
-    this._stateChildRemovedHandler = null;
+    this._stateValueHandler = null;
   }
 
   async ensureAuth() {
@@ -97,30 +95,18 @@ export class NetworkManager {
 
   listenState(callback) {
     if (!this._roomRef) return;
-    // If already listening via child handlers, detach them first
-    if (this._stateListener) {
-      if (this._stateChildAddedHandler) this._roomRef.off('child_added', this._stateChildAddedHandler);
-      if (this._stateChildChangedHandler) this._roomRef.off('child_changed', this._stateChildChangedHandler);
-      if (this._stateChildRemovedHandler) this._roomRef.off('child_removed', this._stateChildRemovedHandler);
+
+    if (this._stateListener && this._stateValueHandler) {
+      this._roomRef.off('value', this._stateValueHandler);
     }
 
-    // Initial snapshot
-    this._roomRef.once('value').then(snap => { callback(snap.exists() ? snap.val() : null); });
-
-    // Listen to granular child events to reduce payload compared to full 'value' stream
-    this._stateChildAddedHandler = childSnap => {
-      this._roomRef.once('value').then(snap => { callback(snap.exists() ? snap.val() : null); });
-    };
-    this._stateChildChangedHandler = childSnap => {
-      this._roomRef.once('value').then(snap => { callback(snap.exists() ? snap.val() : null); });
-    };
-    this._stateChildRemovedHandler = childSnap => {
-      this._roomRef.once('value').then(snap => { callback(snap.exists() ? snap.val() : null); });
+    this._stateValueHandler = snap => {
+      callback(snap.exists() ? snap.val() : null);
     };
 
-    this._roomRef.on('child_added', this._stateChildAddedHandler);
-    this._roomRef.on('child_changed', this._stateChildChangedHandler);
-    this._roomRef.on('child_removed', this._stateChildRemovedHandler);
+    // Initial and ongoing value snapshots on the room node, which is simplest and avoids
+    // multiple overlapping listeners from child events.
+    this._roomRef.on('value', this._stateValueHandler);
     this._stateListener = true;
   }
 
@@ -147,17 +133,13 @@ export class NetworkManager {
     try {
       if (this._guestHandler) this._roomRef.child('guestOnline').off('value', this._guestHandler);
       if (this._disconnectHandler) this._roomRef.child('hostOnline').off('value', this._disconnectHandler);
-      if (this._stateChildAddedHandler) this._roomRef.off('child_added', this._stateChildAddedHandler);
-      if (this._stateChildChangedHandler) this._roomRef.off('child_changed', this._stateChildChangedHandler);
-      if (this._stateChildRemovedHandler) this._roomRef.off('child_removed', this._stateChildRemovedHandler);
+      if (this._stateValueHandler) this._roomRef.off('value', this._stateValueHandler);
     } catch (e) { }
 
     // Clear internal references
     this._guestHandler = null;
     this._disconnectHandler = null;
-    this._stateChildAddedHandler = null;
-    this._stateChildChangedHandler = null;
-    this._stateChildRemovedHandler = null;
+    this._stateValueHandler = null;
     this._roomRef = null;
     this._stateListener = false;
   }
