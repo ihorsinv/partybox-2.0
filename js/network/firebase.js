@@ -6,9 +6,6 @@ export class NetworkManager {
     this._stateListener = false;
     this._guestListenerActive = false;
     this._authReady = authReady || Promise.resolve();
-    this._guestHandler = null;
-    this._disconnectHandler = null;
-    this._stateValueHandler = null;
   }
 
   async ensureAuth() {
@@ -69,41 +66,32 @@ export class NetworkManager {
     if (!this._roomRef || this._guestListenerActive) return;
     this._guestListenerActive = true;
     const guestRef = this._roomRef.child('guestOnline');
-    if (this._guestHandler) guestRef.off('value', this._guestHandler);
+    guestRef.off('value');
     let hasTriggered = false;
-    this._guestHandler = snap => {
+    guestRef.on('value', snap => {
       if (snap.val() === true && !hasTriggered) {
         hasTriggered = true;
         onConnected();
       }
-    };
-    guestRef.on('value', this._guestHandler);
+    });
   }
 
   listenForDisconnect(callback, role) {
     if (!this._roomRef) return;
     const field = role === 'host' ? 'guestOnline' : 'hostOnline';
     const statusRef = this._roomRef.child(field);
-    if (this._disconnectHandler) statusRef.off('value', this._disconnectHandler);
+    statusRef.off('value');
     let firstSnapshot = true;
-    this._disconnectHandler = snap => {
+    statusRef.on('value', snap => {
       if (firstSnapshot) { firstSnapshot = false; return; }
       if (snap.val() === false) callback();
-    };
-    statusRef.on('value', this._disconnectHandler);
+    });
   }
 
   listenState(callback) {
     if (!this._roomRef) return;
-    if (this._stateListener && this._stateValueHandler) {
-      this._roomRef.off('value', this._stateValueHandler);
-    }
-
-    this._stateValueHandler = snap => {
-      callback(snap.exists() ? snap.val() : null);
-    };
-
-    this._roomRef.on('value', this._stateValueHandler);
+    if (this._stateListener) this._roomRef.off('value');
+    this._roomRef.on('value', snap => { callback(snap.exists() ? snap.val() : null); });
     this._stateListener = true;
   }
 
@@ -126,17 +114,9 @@ export class NetworkManager {
       const snap = await this._roomRef.once('value');
       if (snap.exists()) await this._roomRef.child('guestOnline').set(false);
     }
-    // Detach granular handlers if present
-    try {
-      if (this._guestHandler) this._roomRef.child('guestOnline').off('value', this._guestHandler);
-      if (this._disconnectHandler) this._roomRef.child('hostOnline').off('value', this._disconnectHandler);
-      if (this._stateValueHandler) this._roomRef.off('value', this._stateValueHandler);
-    } catch (e) { }
-
-    // Clear internal references
-    this._guestHandler = null;
-    this._disconnectHandler = null;
-    this._stateValueHandler = null;
+    this._roomRef.child('guestOnline').off();
+    this._roomRef.child('hostOnline').off();
+    this._roomRef.off();
     this._roomRef = null;
     this._stateListener = false;
   }
