@@ -6,6 +6,11 @@ export class NetworkManager {
     this._stateListener = false;
     this._guestListenerActive = false;
     this._authReady = authReady || Promise.resolve();
+    this._guestHandler = null;
+    this._disconnectHandler = null;
+    this._stateChildAddedHandler = null;
+    this._stateChildChangedHandler = null;
+    this._stateChildRemovedHandler = null;
   }
 
   async ensureAuth() {
@@ -66,32 +71,56 @@ export class NetworkManager {
     if (!this._roomRef || this._guestListenerActive) return;
     this._guestListenerActive = true;
     const guestRef = this._roomRef.child('guestOnline');
-    guestRef.off('value');
+    if (this._guestHandler) guestRef.off('value', this._guestHandler);
     let hasTriggered = false;
-    guestRef.on('value', snap => {
+    this._guestHandler = snap => {
       if (snap.val() === true && !hasTriggered) {
         hasTriggered = true;
         onConnected();
       }
-    });
+    };
+    guestRef.on('value', this._guestHandler);
   }
 
   listenForDisconnect(callback, role) {
     if (!this._roomRef) return;
     const field = role === 'host' ? 'guestOnline' : 'hostOnline';
     const statusRef = this._roomRef.child(field);
-    statusRef.off('value');
+    if (this._disconnectHandler) statusRef.off('value', this._disconnectHandler);
     let firstSnapshot = true;
-    statusRef.on('value', snap => {
+    this._disconnectHandler = snap => {
       if (firstSnapshot) { firstSnapshot = false; return; }
       if (snap.val() === false) callback();
-    });
+    };
+    statusRef.on('value', this._disconnectHandler);
   }
 
   listenState(callback) {
     if (!this._roomRef) return;
-    if (this._stateListener) this._roomRef.off('value');
-    this._roomRef.on('value', snap => { callback(snap.exists() ? snap.val() : null); });
+    // If already listening via child handlers, detach them first
+    if (this._stateListener) {
+      if (this._stateChildAddedHandler) this._roomRef.off('child_added', this._stateChildAddedHandler);
+      if (this._stateChildChangedHandler) this._roomRef.off('child_changed', this._stateChildChangedHandler);
+      if (this._stateChildRemovedHandler) this._roomRef.off('child_removed', this._stateChildRemovedHandler);
+    }
+
+    // Initial snapshot
+    this._roomRef.once('value').then(snap => { callback(snap.exists() ? snap.val() : null); });
+
+    // Listen to granular child events to reduce payload compared to full 'value' stream
+    this._stateChildAddedHandler = childSnap => {
+      this._roomRef.once('value').then(snap => { callback(snap.exists() ? snap.val() : null); });
+    };
+    this._stateChildChangedHandler = childSnap => {
+      this._roomRef.once('value').then(snap => { callback(snap.exists() ? snap.val() : null); });
+    };
+    this._stateChildRemovedHandler = childSnap => {
+      this._roomRef.once('value').then(snap => { callback(snap.exists() ? snap.val() : null); });
+    };
+
+    this._roomRef.on('child_added', this._stateChildAddedHandler);
+    this._roomRef.on('child_changed', this._stateChildChangedHandler);
+    this._roomRef.on('child_removed', this._stateChildRemovedHandler);
     this._stateListener = true;
   }
 
@@ -114,9 +143,21 @@ export class NetworkManager {
       const snap = await this._roomRef.once('value');
       if (snap.exists()) await this._roomRef.child('guestOnline').set(false);
     }
-    this._roomRef.child('guestOnline').off();
-    this._roomRef.child('hostOnline').off();
-    this._roomRef.off();
+    // Detach granular handlers if present
+    try {
+      if (this._guestHandler) this._roomRef.child('guestOnline').off('value', this._guestHandler);
+      if (this._disconnectHandler) this._roomRef.child('hostOnline').off('value', this._disconnectHandler);
+      if (this._stateChildAddedHandler) this._roomRef.off('child_added', this._stateChildAddedHandler);
+      if (this._stateChildChangedHandler) this._roomRef.off('child_changed', this._stateChildChangedHandler);
+      if (this._stateChildRemovedHandler) this._roomRef.off('child_removed', this._stateChildRemovedHandler);
+    } catch (e) { }
+
+    // Clear internal references
+    this._guestHandler = null;
+    this._disconnectHandler = null;
+    this._stateChildAddedHandler = null;
+    this._stateChildChangedHandler = null;
+    this._stateChildRemovedHandler = null;
     this._roomRef = null;
     this._stateListener = false;
   }
