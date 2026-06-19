@@ -54,6 +54,7 @@ export class PartyBoxApp {
     this.categoriesInitialized = new Set();
     this.secretGameListenerCleanup = [];
     this.secretGridCells = [];
+    this.secretGridCellStates = [];
 
     // Запустити ініціалізацію
     this.init();
@@ -876,6 +877,7 @@ export class PartyBoxApp {
     if (!gridEl) return;
     gridEl.innerHTML = '';
     this.secretGridCells = [];
+    this.secretGridCellStates = [];
     const fragment = document.createDocumentFragment();
 
     this.secretState.grid.forEach((char, idx) => {
@@ -885,6 +887,19 @@ export class PartyBoxApp {
       cell.dataset.idx = idx;
       const charName = this.escapeHtml(char.name);
       const charEmoji = this.escapeHtml(char.emoji);
+      const isEliminated = this.secretState.myEliminated.has(idx);
+      const isSelected = this.secretState.stage === 'selection' && this.secretState.mySelected === idx;
+      const isPendingElimination = this.secretState.stage === 'playing' && this.secretState.pendingEliminated.has(idx);
+      const isLocked = this.secretState.stage === 'playing' && !this.secretState.isMyTurn;
+      const isAccuseTarget = this.secretState.accuseMode;
+
+      if (isEliminated) cell.classList.add('eliminated');
+      if (isSelected) cell.classList.add('selected');
+      if (isPendingElimination) cell.classList.add('pending-elimination');
+      if (isLocked) cell.classList.add('locked');
+      if (isAccuseTarget) cell.classList.add('accuse-target');
+
+      cell.dataset.idx = idx;
       cell.innerHTML = `
         <div class="card-img-wrap">
           <div class="card-img-placeholder">${charEmoji}</div>
@@ -901,6 +916,13 @@ export class PartyBoxApp {
       ImageLoader.bind(imgEl, char, { hidePlaceholder: true });
       fragment.appendChild(cell);
       this.secretGridCells[idx] = cell;
+      this.secretGridCellStates[idx] = {
+        eliminated: isEliminated,
+        selected: isSelected,
+        pendingElimination: isPendingElimination,
+        locked: isLocked,
+        accuseTarget: isAccuseTarget
+      };
     });
 
     gridEl.appendChild(fragment);
@@ -910,11 +932,32 @@ export class PartyBoxApp {
     const t = AppText;
     this.secretGridCells.forEach((cell, idx) => {
       if (!cell) return;
-      cell.classList.toggle('eliminated', this.secretState.myEliminated.has(idx));
-      cell.classList.toggle('selected', this.secretState.stage === 'selection' && this.secretState.mySelected === idx);
-      cell.classList.toggle('pending-elimination', this.secretState.stage === 'playing' && this.secretState.pendingEliminated.has(idx));
-      cell.classList.toggle('locked', this.secretState.stage === 'playing' && !this.secretState.isMyTurn);
-      cell.classList.toggle('accuse-target', this.secretState.accuseMode);
+      const prevState = this.secretGridCellStates[idx] || {};
+      const nextState = {
+        eliminated: this.secretState.myEliminated.has(idx),
+        selected: this.secretState.stage === 'selection' && this.secretState.mySelected === idx,
+        pendingElimination: this.secretState.stage === 'playing' && this.secretState.pendingEliminated.has(idx),
+        locked: this.secretState.stage === 'playing' && !this.secretState.isMyTurn,
+        accuseTarget: this.secretState.accuseMode
+      };
+
+      if (nextState.eliminated !== prevState.eliminated) {
+        cell.classList.toggle('eliminated', nextState.eliminated);
+      }
+      if (nextState.selected !== prevState.selected) {
+        cell.classList.toggle('selected', nextState.selected);
+      }
+      if (nextState.pendingElimination !== prevState.pendingElimination) {
+        cell.classList.toggle('pending-elimination', nextState.pendingElimination);
+      }
+      if (nextState.locked !== prevState.locked) {
+        cell.classList.toggle('locked', nextState.locked);
+      }
+      if (nextState.accuseTarget !== prevState.accuseTarget) {
+        cell.classList.toggle('accuse-target', nextState.accuseTarget);
+      }
+
+      this.secretGridCellStates[idx] = nextState;
     });
     const readyBtn = this.ui.getElement('btn-myst-ready') || document.getElementById('btn-myst-ready');
     const endBtn = this.ui.getElement('btn-myst-end-turn') || document.getElementById('btn-myst-end-turn');
