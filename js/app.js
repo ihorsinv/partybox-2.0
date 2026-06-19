@@ -56,6 +56,7 @@ export class PartyBoxApp {
     this.secretGridCells = [];
     this.secretGridCellStates = [];
     this.secretGameButtonRefs = {};
+    this.secretGameAutoStartTimer = null;
 
     // Запустити ініціалізацію
     this.init();
@@ -671,6 +672,7 @@ export class PartyBoxApp {
         this.hide('host-wait-group'); this.show('host-connected-group');
         if (hostConnectedGroup) hostConnectedGroup.textContent = AppText.secretConnectedMsg;
         this.show('btn-start-secret-game');
+        this.scheduleAutoStartSecretGame();
       });
       ImageLoader.preload(this.secretState.grid).catch(() => { });
     } catch (e) {
@@ -716,6 +718,10 @@ export class PartyBoxApp {
   }
 
   async startSecretGame() {
+    if (this.secretGameAutoStartTimer) {
+      clearTimeout(this.secretGameAutoStartTimer);
+      this.secretGameAutoStartTimer = null;
+    }
     this.initSecretGameState();
     try {
       await this.network.updateState('status', 'selection');
@@ -807,6 +813,10 @@ export class PartyBoxApp {
     this.secretGameListenerCleanup.length = 0;
     this.secretGameButtonRefs = {};
     this.secretGameUIRefs = {};
+    if (this.secretGameAutoStartTimer) {
+      clearTimeout(this.secretGameAutoStartTimer);
+      this.secretGameAutoStartTimer = null;
+    }
   }
 
   setupSecretGameListeners() {
@@ -1301,6 +1311,20 @@ export class PartyBoxApp {
     } catch (err) {
       console.warn('Не вдалося скасувати replay request', err);
     }
+  }
+
+  scheduleAutoStartSecretGame() {
+    if (this.secretGameAutoStartTimer) {
+      clearTimeout(this.secretGameAutoStartTimer);
+    }
+    this.secretGameAutoStartTimer = setTimeout(() => {
+      const btnStart = this.getElement('btn-start-secret-game') || document.getElementById('btn-start-secret-game');
+      if (btnStart && btnStart.offsetParent !== null && !btnStart.disabled) {
+        this.showToast('Гравець підключився — гра почнеться зараз.');
+        this.startSecretGame().catch(() => { });
+      }
+      this.secretGameAutoStartTimer = null;
+    }, 6000);
   }
 
   async executeReplayReset() {
