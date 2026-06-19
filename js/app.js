@@ -377,6 +377,8 @@ export class PartyBoxApp {
     await this.cancelSecretLobby();
     await this.network.disconnect(this.secretState.role);
     this.resetSecretState();
+    this.ui.cleanup();
+    this.ui.invalidateCache();
     const joinBtn = document.getElementById('btn-join-game');
     if (joinBtn) joinBtn.disabled = false;
     try {
@@ -694,6 +696,8 @@ export class PartyBoxApp {
 
   async cancelSecretLobby() {
     await this.network.disconnect(this.secretState.role).catch(() => { });
+    this.ui.cleanup();
+    this.ui.invalidateCache();
     this.show('host-setup-view'); this.hide('host-lobby-view');
     this.show('host-wait-group'); this.hide('host-connected-group');
     this.hide('btn-start-secret-game');
@@ -734,6 +738,35 @@ export class PartyBoxApp {
     }, this.secretState.role);
     document.getElementById('orientation-tip').classList.remove('dismissed');
     this.hide('mystery-my-char-wrap');
+    this.setupSecretGameListeners();
+  }
+
+  setupSecretGameListeners() {
+    const cardsGrid = this.getElement('cards-grid') || document.getElementById('cards-grid');
+    if (cardsGrid) {
+      this.ui.attachDelegatedListener(cardsGrid, '.info-trigger-btn', 'click', (event, target) => {
+        event.stopPropagation();
+        const cell = target.closest('.card-cell');
+        const idx = cell ? Number(cell.dataset.idx) : NaN;
+        if (!Number.isNaN(idx) && this.secretState.grid[idx]) {
+          this.openInfoModal(this.secretState.grid[idx], { enlargeImage: true }, event);
+        }
+      });
+      this.ui.attachDelegatedListener(cardsGrid, '.card-cell', 'click', (event, target) => {
+        const idx = Number(target.dataset.idx);
+        if (!Number.isNaN(idx)) {
+          this.handleCardClick(idx);
+        }
+      });
+    }
+    this.ui.attachListener('btn-myst-info', 'click', event => {
+      if (!Number.isInteger(this.secretState.mySelected)) return;
+      const myChar = this.secretState.grid[this.secretState.mySelected];
+      if (myChar) {
+        event.stopPropagation();
+        this.openInfoModal(myChar, { enlargeImage: true }, event);
+      }
+    });
   }
 
   dismissOrientationTip() {
@@ -848,8 +881,6 @@ export class PartyBoxApp {
         </div>`;
       const imgEl = cell.querySelector('.card-img');
       ImageLoader.bind(imgEl, char, { hidePlaceholder: true });
-      cell.querySelector('.info-trigger-btn').onclick = (e) => { e.stopPropagation(); this.openInfoModal(char, { enlargeImage: true }, e); };
-      cell.onclick = () => this.handleCardClick(idx);
       gridEl.appendChild(cell);
     });
   }
