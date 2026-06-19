@@ -718,6 +718,10 @@ export class PartyBoxApp {
   }
 
   async startSecretGame() {
+    if (!this.network._roomRef) {
+      this.showToast('Кімната не готова. Перезапустіть лобі.');
+      return;
+    }
     if (this.secretGameAutoStartTimer) {
       clearTimeout(this.secretGameAutoStartTimer);
       this.secretGameAutoStartTimer = null;
@@ -725,7 +729,18 @@ export class PartyBoxApp {
     this.initSecretGameState();
     try {
       await this.network.updateState('status', 'selection');
+      this.secretState.status = 'selection';
+      this.secretState.stage = 'selection';
+      this.secretState.gameActive = true;
+      if (!this.secretState.gridBuilt) {
+        this.initSecretGrid();
+        this.secretState.gridBuilt = true;
+      }
+      this.hide('mystery-my-char-wrap');
+      this.switchScreen('screen-secret-game');
+      this.updateSecretGridUI();
     } catch (err) {
+      console.warn('startSecretGame failed', err);
       this.showToast('Не вдалося розпочати гру. Спробуйте ще раз.');
     }
   }
