@@ -755,7 +755,7 @@ export class PartyBoxApp {
     const cardsGrid = this.getElement('cards-grid') || document.getElementById('cards-grid');
     if (cardsGrid) {
       const cleanupInfo = this.ui.attachDelegatedListener(cardsGrid, '.info-trigger-btn', 'click', (event, target) => {
-        event.stopPropagation();
+        event.stopImmediatePropagation();
         const cell = target.closest('.card-cell');
         const idx = cell ? Number(cell.dataset.idx) : NaN;
         if (!Number.isNaN(idx) && this.secretState.grid[idx]) {
@@ -763,6 +763,7 @@ export class PartyBoxApp {
         }
       });
       const cleanupCard = this.ui.attachDelegatedListener(cardsGrid, '.card-cell', 'click', (event, target) => {
+        if (event.target.closest('.info-trigger-btn')) return;
         const idx = Number(target.dataset.idx);
         if (!Number.isNaN(idx)) {
           this.handleCardClick(idx);
