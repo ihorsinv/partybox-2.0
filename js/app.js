@@ -55,6 +55,7 @@ export class PartyBoxApp {
     this.secretGameListenerCleanup = [];
     this.secretGridCells = [];
     this.secretGridCellStates = [];
+    this.secretGameButtonRefs = {};
 
     // Запустити ініціалізацію
     this.init();
@@ -742,7 +743,18 @@ export class PartyBoxApp {
     }, this.secretState.role);
     document.getElementById('orientation-tip').classList.remove('dismissed');
     this.hide('mystery-my-char-wrap');
+    this.cacheSecretGameButtons();
     this.setupSecretGameListeners();
+  }
+
+  cacheSecretGameButtons() {
+    this.secretGameButtonRefs = {
+      readyBtn: this.ui.getElement('btn-myst-ready') || document.getElementById('btn-myst-ready'),
+      endBtn: this.ui.getElement('btn-myst-end-turn') || document.getElementById('btn-myst-end-turn'),
+      accBtn: this.ui.getElement('btn-myst-accuse') || document.getElementById('btn-myst-accuse'),
+      turnInd: this.ui.getElement('turn-indicator') || document.getElementById('turn-indicator'),
+      hintEl: document.getElementById('myst-ready-hint')
+    };
   }
 
   disposeSecretGameListeners() {
@@ -750,6 +762,7 @@ export class PartyBoxApp {
       try { cleanup(); } catch (e) { }
     });
     this.secretGameListenerCleanup.length = 0;
+    this.secretGameButtonRefs = {};
   }
 
   setupSecretGameListeners() {
@@ -959,23 +972,28 @@ export class PartyBoxApp {
 
       this.secretGridCellStates[idx] = nextState;
     });
-    const readyBtn = this.ui.getElement('btn-myst-ready') || document.getElementById('btn-myst-ready');
-    const endBtn = this.ui.getElement('btn-myst-end-turn') || document.getElementById('btn-myst-end-turn');
-    const accBtn = this.ui.getElement('btn-myst-accuse') || document.getElementById('btn-myst-accuse');
-    const turnInd = this.ui.getElement('turn-indicator') || document.getElementById('turn-indicator');
+
+    const { readyBtn, endBtn, accBtn, turnInd, hintEl } = this.secretGameButtonRefs;
+
     if (this.secretState.stage === 'lobby') {
-      if (readyBtn) this.hide(readyBtn);
-      if (endBtn) this.hide(endBtn);
-      if (accBtn) this.hide(accBtn);
-      if (turnInd) turnInd.textContent = this.secretState.role === 'guest' ? 'Очікування початку гри хостом...' : 'Очікування підключення суперника...';
-      if (turnInd) turnInd.className = 'turn-indicator blink';
+      if (readyBtn) readyBtn.style.display = 'none';
+      if (endBtn) endBtn.style.display = 'none';
+      if (accBtn) accBtn.style.display = 'none';
+      if (turnInd) {
+        turnInd.textContent = this.secretState.role === 'guest' ? 'Очікування початку гри хостом...' : 'Очікування підключення суперника...';
+        turnInd.className = 'turn-indicator blink';
+      }
     } else if (this.secretState.stage === 'selection') {
-      if (readyBtn) this.show(readyBtn);
-      if (endBtn) this.hide(endBtn);
-      if (accBtn) this.hide(accBtn);
+      if (readyBtn) readyBtn.style.display = '';
+      if (endBtn) endBtn.style.display = 'none';
+      if (accBtn) accBtn.style.display = 'none';
       const noSelection = !Number.isInteger(this.secretState.mySelected);
       if (readyBtn) {
-        readyBtn.disabled = this.secretState.myReady || noSelection;
+        const shouldDisable = this.secretState.myReady || noSelection;
+        if (readyBtn.disabled !== shouldDisable) {
+          readyBtn.disabled = shouldDisable;
+          readyBtn.setAttribute('aria-disabled', String(shouldDisable));
+        }
         if (this.secretState.myReady) {
           readyBtn.title = 'Очікуйте суперника';
         } else if (noSelection) {
@@ -984,32 +1002,29 @@ export class PartyBoxApp {
           readyBtn.title = '';
         }
       }
-      const hintEl = document.getElementById('myst-ready-hint');
       if (hintEl) {
         hintEl.classList.add('hidden');
       }
-      if (readyBtn) {
-        if (readyBtn.disabled) {
-          readyBtn.setAttribute('aria-disabled', 'true');
-        } else {
-          readyBtn.setAttribute('aria-disabled', 'false');
-        }
+      if (turnInd) {
+        turnInd.textContent = t.turnWait;
+        turnInd.className = 'turn-indicator blink';
       }
-      if (turnInd) turnInd.textContent = t.turnWait;
-      if (turnInd) turnInd.className = 'turn-indicator blink';
     } else if (this.secretState.stage === 'playing') {
-      if (readyBtn) this.hide(readyBtn);
+      if (readyBtn) readyBtn.style.display = 'none';
       if (this.secretState.isMyTurn) {
-        if (endBtn) this.show(endBtn);
-        if (accBtn) this.show(accBtn);
+        if (endBtn) endBtn.style.display = '';
+        if (accBtn) accBtn.style.display = '';
+      } else {
+        if (endBtn) endBtn.style.display = 'none';
+        if (accBtn) accBtn.style.display = 'none';
       }
-      else {
-        if (endBtn) this.hide(endBtn);
-        if (accBtn) this.hide(accBtn);
+      if (accBtn) {
+        accBtn.textContent = this.secretState.accuseMode ? t.secretCancelAccuseBtn : t.secretAccuseBtn;
       }
-      if (accBtn) accBtn.textContent = this.secretState.accuseMode ? t.secretCancelAccuseBtn : t.secretAccuseBtn;
-      if (turnInd) turnInd.textContent = this.secretState.isMyTurn ? t.turnMine : t.turnEnemy;
-      if (turnInd) turnInd.className = 'turn-indicator ' + (this.secretState.isMyTurn ? '' : 'enemy');
+      if (turnInd) {
+        turnInd.textContent = this.secretState.isMyTurn ? t.turnMine : t.turnEnemy;
+        turnInd.className = 'turn-indicator ' + (this.secretState.isMyTurn ? '' : 'enemy');
+      }
     }
   }
 
