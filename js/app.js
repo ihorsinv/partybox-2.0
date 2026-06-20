@@ -8,7 +8,8 @@ import { UIManager, ImageLoader } from "./ui/ui-manager.js";
 
 export class PartyBoxApp {
   constructor() {
-
+    // Ініціалізувати Firebase, але обернути в перевірку/try-catch —
+    // якщо зовнішній скрипт не завантажився, не припиняти ініціалізацію додатку
     if (typeof firebase !== 'undefined' && typeof firebase.initializeApp === 'function') {
       try {
         firebase.initializeApp({
@@ -336,13 +337,17 @@ export class PartyBoxApp {
     this.updateStaticTexts();
   }
 
+  normalizeSpyPlayerCount(count) {
+    return Math.min(Math.max(count, AppConfig.MIN_PLAYERS_SPY), AppConfig.MAX_PLAYERS_SPY);
+  }
+
   /**
    * Змінити кількість гравців
    * @param {number} delta - Зміна (додати/відняти)
    */
   changeCount(delta) {
-    const next = this.state.playerCount + delta;
-    if (next < AppConfig.MIN_PLAYERS_SPY || next > AppConfig.MAX_PLAYERS_SPY) return;
+    const next = this.normalizeSpyPlayerCount(this.state.playerCount + delta);
+    if (next === this.state.playerCount) return;
     this.state.playerCount = next;
     this.ui.setText('player-count', String(next));
     this.updateStaticTexts();
