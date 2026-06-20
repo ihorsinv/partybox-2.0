@@ -5,6 +5,7 @@ export class NetworkManager {
     this._roomRef = null;
     this._stateListener = false;
     this._guestListenerActive = false;
+    this._disconnectListenerActive = false;
     this._authReady = authReady || Promise.resolve();
   }
 
@@ -80,7 +81,10 @@ export class NetworkManager {
     if (!this._roomRef) return;
     const field = role === 'host' ? 'guestOnline' : 'hostOnline';
     const statusRef = this._roomRef.child(field);
-    statusRef.off('value');
+    if (this._disconnectListenerActive) {
+      statusRef.off('value');
+    }
+    this._disconnectListenerActive = true;
     let firstSnapshot = true;
     statusRef.on('value', snap => {
       if (firstSnapshot) { firstSnapshot = false; return; }
@@ -119,6 +123,8 @@ export class NetworkManager {
     this._roomRef.off();
     this._roomRef = null;
     this._stateListener = false;
+    this._guestListenerActive = false;
+    this._disconnectListenerActive = false;
   }
 
   _isValidRoomCode(code) {
